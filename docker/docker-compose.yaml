@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: zabbix-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: zabbix
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zabbix -d zabbix"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:alpine-7.4-latest
+    container_name: zabbix-server
+    restart: unless-stopped
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_DB: zabbix
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix_password
+    ports:
+      - "10051:10051"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-7.4-latest
+    container_name: zabbix-web
+    restart: unless-stopped
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_DB: zabbix
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix_password
+      ZBX_SERVER_HOST: zabbix-server
+      PHP_TZ: Europe/Amsterdam
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      zabbix-server:
+        condition: service_started
+
+  codex-exporter:
+    build:
+      context: ..
+      dockerfile: docker/exporter/Dockerfile
+    container_name: codex-zabbix-exporter
+    restart: unless-stopped
+    environment:
+      OTLP_LISTEN_ADDR: "0.0.0.0:4317"
+      ZABBIX_SERVER_ADDR: "zabbix-server:10051"
+      ZABBIX_HOST: "codex-wrapper"
+      ZABBIX_KEY_PREFIX: "otel"
+      ZABBIX_SEND_TIMEOUT: "5s"
+      ZABBIX_BATCH_SIZE: "100"
+      ZABBIX_FLUSH_INTERVAL: "1s"
+      PROCESSOR_GENERIC_ENABLED: "false"
+      LOG_LEVEL: "info"
+    ports:
+      - "4317:4317"
+    depends_on:
+      zabbix-server:
+        condition: service_started
+
+volumes:
+  postgres_data:
