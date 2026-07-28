@@ -5,3 +5,7 @@ up:
 down:
 	docker-compose -f docker/docker-compose.yaml down
 .PHONY: down
+
+configure:
+	./scripts/configure-zabbix.sh
+.PHONY: configure
