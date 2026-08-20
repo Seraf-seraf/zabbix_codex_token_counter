@@ -15,15 +15,9 @@ BEGIN
 	  AND flags = 0;
 
 	IF codex_host_id IS NULL THEN
-		UPDATE ids
-		SET nextid = nextid + 1
-		WHERE table_name = 'hosts'
-		  AND field_name = 'hostid'
-		RETURNING nextid INTO codex_host_id;
-
-		IF codex_host_id IS NULL THEN
-			RAISE EXCEPTION 'Не удалось получить новый hosts.hostid';
-		END IF;
+		SELECT COALESCE(MAX(hostid), 0) + 1
+		INTO codex_host_id
+		FROM hosts;
 
 		INSERT INTO hosts (hostid, host, name, name_upper)
 		VALUES (codex_host_id, 'codex-wrapper', 'Codex exporter', 'CODEX EXPORTER');
@@ -36,7 +30,12 @@ BEGIN
 	  AND type = 0;
 
 	IF applications_group_id IS NULL THEN
-		RAISE EXCEPTION 'Группа узлов Applications не найдена';
+		SELECT COALESCE(MAX(groupid), 0) + 1
+		INTO applications_group_id
+		FROM hstgrp;
+
+		INSERT INTO hstgrp (groupid, name, type)
+		VALUES (applications_group_id, 'Applications', 0);
 	END IF;
 
 	IF NOT EXISTS (
@@ -45,15 +44,9 @@ BEGIN
 		WHERE hostid = codex_host_id
 		  AND groupid = applications_group_id
 	) THEN
-		UPDATE ids
-		SET nextid = nextid + 1
-		WHERE table_name = 'hosts_groups'
-		  AND field_name = 'hostgroupid'
-		RETURNING nextid INTO codex_host_group_id;
-
-		IF codex_host_group_id IS NULL THEN
-			RAISE EXCEPTION 'Не удалось получить новый hosts_groups.hostgroupid';
-		END IF;
+		SELECT COALESCE(MAX(hostgroupid), 0) + 1
+		INTO codex_host_group_id
+		FROM hosts_groups;
 
 		INSERT INTO hosts_groups (hostgroupid, hostid, groupid)
 		VALUES (codex_host_group_id, codex_host_id, applications_group_id);
@@ -77,15 +70,9 @@ BEGIN
 			WHERE hostid = codex_host_id
 			  AND key_ = metric.key_
 		) THEN
-			UPDATE ids
-			SET nextid = nextid + 1
-			WHERE table_name = 'items'
-			  AND field_name = 'itemid'
-			RETURNING nextid INTO metric_id;
-
-			IF metric_id IS NULL THEN
-				RAISE EXCEPTION 'Не удалось получить новый items.itemid';
-			END IF;
+			SELECT COALESCE(MAX(itemid), 0) + 1
+			INTO metric_id
+			FROM items;
 
 			INSERT INTO items (
 				itemid,
